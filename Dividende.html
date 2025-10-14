@@ -1,0 +1,50 @@
+import requests
+from bs4 import BeautifulSoup
+from notion_client import Client
+import time
+
+NOTION_TOKEN = "dein_notion_token"
+DATABASE_ID = "deine_notion_datenbank_id"
+
+notion = Client(auth=NOTION_TOKEN)
+
+def fetch_dividend_table():
+    url = "https://de.marketscreener.com/kurs/aktie/MCDONALD-S-CORPORATION-4833/bewertung-dividende/"
+    resp = requests.get(url)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    # Beispiel: die Tabelle mit Dividende finden
+    # Diese CSS-Selektoren musst du anpassen basierend auf der HTML-Struktur
+    table = soup.find("table", {"class": "some-class-for-dividend-table"})
+    data = {}
+    if table:
+        # z. B. Zeilen durchgehen
+        rows = table.find_all("tr")
+        for row in rows:
+            cols = row.find_all(["th","td"])
+            cols = [c.get_text(strip=True) for c in cols]
+            # Beispiel: Jahr in cols[0], Dividende cols[1]
+            if len(cols) >= 2:
+                jahr = cols[0]
+                div = cols[1]
+                data[jahr] = div
+    return data
+
+def update_notion(data: dict):
+    # Beispiel: Für jedes Jahr eine Zeile in der Datenbank hinzufügen oder aktualisieren
+    for jahr, div in data.items():
+        notion.pages.create(
+            parent={"database_id": DATABASE_ID},
+            properties={
+                "Jahr": {"title": [{"text": {"content": jahr}}]},
+                "Dividende": {"rich_text": [{"text": {"content": div}}]},
+                # Weitere Felder nach Bedarf
+            }
+        )
+
+def main():
+    data = fetch_dividend_table()
+    update_notion(data)
+
+if __name__ == "__main__":
+    main()
